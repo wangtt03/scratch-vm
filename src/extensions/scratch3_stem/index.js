@@ -11,11 +11,11 @@ class Scratch3StemBlocks {
                 {
                     opcode: 'stemSpeaker',
                     blockType: BlockType.COMMAND,
-                    text: 'say [TEXT]',
+                    text: '说 [TEXT]',
                     arguments: {
                         TEXT: {
                             type: ArgumentType.STRING,
-                            defaultValue: '你好！'
+                            defaultValue: '你好世界！'
                         }
                     }
                 }
