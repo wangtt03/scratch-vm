@@ -12,7 +12,7 @@ class Scratch3StemBlocks {
         this.runtime.ioDevices.video.enableVideo();
         return {
             id: 'stem',
-            name: 'Stem',
+            name: '人工智能',
             blocks: [
                 {
                     opcode: 'stemSpeaker',
@@ -28,7 +28,7 @@ class Scratch3StemBlocks {
                 {
                     opcode: 'imageRecognizer',
                     blockType: BlockType.REPORTER,
-                    text: '识别图像'
+                    text: '识别小动物图像'
                 }
             ]
         };
