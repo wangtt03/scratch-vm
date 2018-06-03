@@ -28,13 +28,28 @@ class Scratch3StemBlocks {
                 {
                     opcode: 'imageRecognizer',
                     blockType: BlockType.REPORTER,
-                    text: '识别小动物图像'
+                    text: '识别小动物图像',
+                    arguments: {
+                        TEXT: {
+                            type: ArgumentType.STRING,
+                            defaultValue: '00000'
+                        }
+                    }
                 }
             ]
         };
     }
     stemSpeaker (args) {
-        Sounds.getSingleton().playURL("/speech/tts/"+args.TEXT+"/demo.wav");
+        let xhr = new XMLHttpRequest();
+        xhr.open('GET', '/speech/baidutoken', false);
+        xhr.send();
+        if (xhr.status === 200) {
+            console.log(xhr.responseText);
+            let res = JSON.parse(xhr.responseText);
+            
+            Sounds.getSingleton().playURL("http://tsn.baidu.com/text2audio?tex="+args.TEXT+"&tok="+res["access_token"]+"&spd=5&pit=5&vol=15&per=4&cuid=24.8e3b7a22de8dad3b796edd9a56463eca.2592000.1530540031.282335-11340832&ctp=1&lan=zh");
+        }
+
     }
     imageRecognizer () {/*
         const frame = this.runtime.ioDevices.video.getFrame({
@@ -71,7 +86,7 @@ class Scratch3StemBlocks {
         let postData = new FormData();
         postData.append('fileData', blob);
         postData.append('baseModel', "mobilenet_0.50_224_image_classification");
-        postData.append('versionID', '28952');
+        postData.append('versionID', args.TEXT);
         postData.append('versionName', '动物分类');
 
         let xhr = new XMLHttpRequest();
