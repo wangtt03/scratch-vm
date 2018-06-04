@@ -9,15 +9,24 @@ class Scratch3StemBlocks {
         this.runtime = runtime;
     }
     getInfo () {
-        this.runtime.ioDevices.video.enableVideo();
         return {
             id: 'stem',
             name: '人工智能',
             blocks: [
                 {
+                    opcode: 'stemOpenVideo',
+                    blockType: BlockType.COMMAND,
+                    text: '打开摄像头',
+                },
+                {
+                    opcode: 'stemCloseVideo',
+                    blockType: BlockType.COMMAND,
+                    text: '关闭摄像头',
+                },
+                {
                     opcode: 'stemSpeaker',
                     blockType: BlockType.COMMAND,
-                    text: '说 [TEXT]',
+                    text: '语音合成 [TEXT]',
                     arguments: {
                         TEXT: {
                             type: ArgumentType.STRING,
@@ -28,30 +37,40 @@ class Scratch3StemBlocks {
                 {
                     opcode: 'imageRecognizer',
                     blockType: BlockType.REPORTER,
-                    text: '识别小动物图像',
+                    text: '使用模型 [TEXT] 识别图像',
                     arguments: {
                         TEXT: {
                             type: ArgumentType.STRING,
                             defaultValue: '00000'
                         }
                     }
+                },
+                {
+                    opcode: 'emotionRecognizer',
+                    blockType: BlockType.REPORTER,
+                    text: '检测人脸表情',
                 }
             ]
         };
     }
+    stemCloseVideo() {
+        this.runtime.ioDevices.video.disableVideo();        
+    }
+    stemOpenVideo(){
+        this.runtime.ioDevices.video.enableVideo();
+    }
+    
     stemSpeaker (args) {
         let xhr = new XMLHttpRequest();
         xhr.open('GET', '/speech/baidutoken', false);
         xhr.send();
         if (xhr.status === 200) {
-            console.log(xhr.responseText);
             let res = JSON.parse(xhr.responseText);
-            
-            Sounds.getSingleton().playURL("http://tsn.baidu.com/text2audio?tex="+args.TEXT+"&tok="+res["access_token"]+"&spd=5&pit=5&vol=15&per=4&cuid=24.8e3b7a22de8dad3b796edd9a56463eca.2592000.1530540031.282335-11340832&ctp=1&lan=zh");
+            Sounds.getSingleton().playURL("http://tsn.baidu.com/text2audio?tex="+args.TEXT+"&tok="+res["access_token"]+"&spd=5&pit=5&vol=15&per=4&cuid=24.8e3b7a22de8dad3b796edd9a56463eca.2592000.1530540031.282335-11340832&ctp=1&lan=zh&atype=.mp3");
         }
 
     }
-    imageRecognizer () {/*
+    imageRecognizer (args) {/*
         const frame = this.runtime.ioDevices.video.getFrame({
             format: Video.FORMAT_IMAGE_DATA,
             dimensions: [100, 100]
@@ -102,6 +121,37 @@ class Scratch3StemBlocks {
             return res[0].class;
         }
         console.log('error');
+        return "error";
+    }
+
+    emotionRecognizer() {
+        const canvas = this.runtime.ioDevices.video.getFrame({
+            format: Video.FORMAT_CANVAS,
+            dimensions: [480, 360]
+        }); 
+
+        let dataurl = canvas.toDataURL('image/png');
+        let arr = dataurl.split(','), 
+            mime = arr[0].match(/:(.*?);/)[1],
+            bstr = atob(arr[1]), 
+            n = bstr.length, 
+            u8arr = new Uint8Array(n);
+        while(n--){
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        let blob = new Blob([u8arr], {type:mime});
+        console.log(URL.createObjectURL(blob));
+
+        let postData = new FormData();
+        postData.append('data', blob);
+
+        let xhr = new XMLHttpRequest();
+        xhr.open('POST', '/stemgarden/stemgarden/1.0/faceAPI/emotionDetect', false);
+        xhr.send(postData);
+        if (xhr.status === 200) {
+            console.log(xhr.responseText);
+            return xhr.responseText;
+        }
         return "error";
     }
 }
