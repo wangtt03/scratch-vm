@@ -9,6 +9,11 @@ const TextToAudioState = {
     Male: '男性',
 };
 
+const TextOrientationState = {
+    Normal: '正常',
+    Mirror: '镜像',
+};
+
 class Scratch3StemBlocks {
     constructor (runtime) {
         this.runtime = runtime;
@@ -68,11 +73,19 @@ class Scratch3StemBlocks {
                 {
                     opcode: 'textGeneralRecognizer',
                     blockType: BlockType.REPORTER,
-                    text: '识别图像中的文字',
+                    text: '识别图像中的文字 [TEXT_ORI]',
+                    arguments: {
+                        TEXT_ORI: {
+                            type: ArgumentType.NUMBER,
+                            menu: 'TEXT_ORI',
+                            defaultValue: TextOrientationState.Normal
+                        }
+                    }
                 }
             ],
             menus: {
-                AUDIO_GENDER: this._buildMenu(this.AUDIO_GENDER_INFO)
+                AUDIO_GENDER: this._buildMenu(this.AUDIO_GENDER_INFO),
+                TEXT_ORI: this._buildMenu(this.TEXT_ORI_INFO)
             }
 
         };
@@ -87,6 +100,19 @@ class Scratch3StemBlocks {
             {
                 name: "女性",
                 value: TextToAudioState.Female
+            }
+        ];
+    }
+
+    get TEXT_ORI_INFO () {
+        return [
+            {
+                name: "正常",
+                value: TextOrientationState.Normal
+            },
+            {
+                name: "镜像",
+                value: TextOrientationState.Mirror
             }
         ];
     }
@@ -167,10 +193,15 @@ class Scratch3StemBlocks {
         return "error";
     }
 
-    textGeneralRecognizer() {
+    textGeneralRecognizer(args) {
+        var mirrorInfo = true;
+        if (args.TEXT_ORI == TextOrientationState.Normal) {
+            mirrorInfo = false;
+        }
         const canvas = this.runtime.ioDevices.video.getFrame({
             format: Video.FORMAT_CANVAS,
-            dimensions: [480, 360]
+            dimensions: [480, 360],
+            mirror: mirrorInfo,
         }); 
 
         if (!canvas) {
@@ -180,22 +211,21 @@ class Scratch3StemBlocks {
         let arr = dataurl.split(',');
 
         let xhr = new XMLHttpRequest();
-        xhr.open('GET', '/speech/baidutexttoken', false);
-        xhr.send();
-        if (xhr.status === 200) {
+        xhr.open('POST', '/speech/ocr', false);
+        xhr.send(encodeURIComponent(arr[1]));
+        if (xhr.status == 200 && xhr.responseText != "") {
             let res = JSON.parse(xhr.responseText);
-            let xhr2 = new XMLHttpRequest();
-            xhr2.open('POST', 'https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic?access_token=' + res["access_token"], false);
-            xhr2.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
-            xhr2.send("image=" + encodeURIComponent(arr[1]));
-            if (xhr2.status === 200) {
-                let res2 = JSON.parse(xhr2.responseText);
-                if (!!res2.words_result && res2.words_result.length > 0) {
-                    return res2.words_result[0].words;
-                }
+            if (!!res.words_result && res.words_result.length > 0) {
+                // var words = [];
+                // for (let index = 0; index < res.words_result.length; index++) {
+                //     const element = res.words_result[index];
+                //     words.push(element.words);
+                // }
+                // return words;
+                return res.words_result[0].words;
             }
         }
-        return "error";
+        return "";
     }
 
     imageGeneralRecognizer() {
