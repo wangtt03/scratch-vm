@@ -21,9 +21,17 @@ const SrLangTypeState = {
     Sichuan:"四川话"
 };
 
+let assetData = {};
+try {
+    assetData = require('./manifest');
+} catch (e) {
+    // Non-webpack environment, don't worry about assets.
+}
 class Scratch3StemBlocks {
     constructor (runtime) {
         this.runtime = runtime;
+
+        this.dataBuffer = [];
 
         this._speechPromises = [];
         this._currentUtterance = '';
@@ -32,11 +40,11 @@ class Scratch3StemBlocks {
         this._currentOcrResult = '';
         this._currentGeneralImagePredict = '';
 
-        this._setupSocketCallback = this._setupSocketCallback.bind(this);
         this._processAudioCallback = this._processAudioCallback.bind(this);
         this._resetListening = this._resetListening.bind(this);
         this._stopTranscription = this._stopTranscription.bind(this);
 
+        this._loadUISounds();
     }
     getInfo () {
         return {
@@ -240,8 +248,7 @@ class Scratch3StemBlocks {
 
         // this._phraseList = this._scanBlocksForPhraseList();
         // this._utteranceForEdgeTrigger = '';
-        return new Promise(resolve => {
-                resolve();}).then(() => {
+        return this._playSound(this._startSoundBuffer).then(() => {
                 const speechPromise = new Promise(resolve => {
                     const listeningInProgress = this._speechPromises.length > 0;
                     this._speechPromises.push(resolve);
@@ -251,6 +258,53 @@ class Scratch3StemBlocks {
                 });
                 return speechPromise.then(() => {});
             });
+    }
+
+    _loadUISounds () {
+        const startSoundBuffer = assetData['speech-rec-start.mp3'];
+        this._decodeSound(startSoundBuffer).then(buffer => {
+            this._startSoundBuffer = buffer;
+        });
+
+        const endSoundBuffer = assetData['speech-rec-end.mp3'];
+        this._decodeSound(endSoundBuffer).then(buffer => {
+            this._endSoundBuffer = buffer;
+        });
+    }
+
+    _decodeSound (soundBuffer) {
+        const context = this.runtime.audioEngine && this.runtime.audioEngine.audioContext;
+
+        if (!context) {
+            return Promise.reject(new Error('No Audio Context Detected'));
+        }
+
+        // Check for newer promise-based API
+        if (context.decodeAudioData.length === 1) {
+            return context.decodeAudioData(soundBuffer);
+        } else { // eslint-disable-line no-else-return
+            // Fall back to callback API
+            return new Promise((resolve, reject) =>
+                context.decodeAudioData(soundBuffer,
+                    buffer => resolve(buffer),
+                    error => reject(error)
+                )
+            );
+        }
+    }
+
+    _playSound (buffer) {
+        if (this.runtime.audioEngine === null) return;
+        const context = this.runtime.audioEngine.audioContext;
+        const bufferSource = context.createBufferSource();
+        bufferSource.buffer = buffer;
+        bufferSource.connect(this.runtime.audioEngine.audioContext.destination);
+        bufferSource.start();
+        return new Promise(resolve => {
+            bufferSource.onended = () => {
+                resolve();
+            };
+        });
     }
 
     _resolveSpeechPromises () {
@@ -276,23 +330,15 @@ class Scratch3StemBlocks {
         this._initializeMicrophone();
         this._initScriptNode();
 
-        Promise.all([this._audioPromise]).then(
-            this._setupSocketCallback)
-            .catch(e => {
-                log.error(`Problem with setup:  ${e}`);
-            });
-
-        // this._startByteStream();
-        // this._newWebsocket();
-    }
-
-    _setupSocketCallback (values) {
-        this._micStream = values[0];
-        this._startByteStream();
+        Promise.all([this._audioPromise]).then((values)=>{
+            this._micStream = values[0];
+            this._startByteStream();
+        }).catch(e => {
+            log.error(`Problem with setup:  ${e}`);
+        });
     }
 
     _startByteStream () {
-        this.dataBuffer = [];
         // Hook up the scriptNode to the mic
         this._sourceNode = this._context.createMediaStreamSource(this._micStream);
         this._sourceNode.connect(this._scriptNode);
@@ -301,20 +347,32 @@ class Scratch3StemBlocks {
     }
 
     _processAudioCallback (e) {
-        const floatSamples = e.inputBuffer.getChannelData(0);
-        const MAX_INT = Math.pow(2, 16 - 1) - 1;
-        // var data = new Float32Array(floatSamples);
-        this.dataBuffer.push(Int16Array.from(floatSamples.map(n => n * MAX_INT)));
+        const floatSamples = Float32Array.from(e.inputBuffer.getChannelData(0));
+        this.dataBuffer.push(this._interpolateArray(floatSamples, 8000, 44100));
+    }
 
-        // if (this._socket.readyState === WebSocket.CLOSED ||
-        // this._socket.readyState === WebSocket.CLOSING) {
-        //     log.error(`Not sending data because not in ready state. State: ${this._socket.readyState}`);
-        //     // TODO: should we stop trying and reset state so it might work next time?
-        //     return;
-        // }
-        // // The samples are floats in range [-1, 1]. Convert to 16-bit signed
-        // // integer.
-        // this._socket.send(Int16Array.from(floatSamples.map(n => n * MAX_INT)));
+    _interpolateArray(data, newSampleRate, oldSampleRate) {
+        var fitCount = Math.round(data.length * (newSampleRate / oldSampleRate));
+        //var newData = new Array();
+        var newData = [];
+        //var springFactor = new Number((data.length - 1) / (fitCount - 1));
+        var springFactor = Number((data.length - 1) / (fitCount - 1));
+        newData[0] = data[0]; // for new allocation
+        for (var i = 1; i < fitCount - 1; i++) {
+            var tmp = i * springFactor;
+            //var before = new Number(Math.floor(tmp)).toFixed();
+            //var after = new Number(Math.ceil(tmp)).toFixed();
+            var before = Number(Math.floor(tmp)).toFixed();
+            var after = Number(Math.ceil(tmp)).toFixed();
+            var atPoint = tmp - before;
+            newData[i] = this._linearInterpolate(data[before], data[after], atPoint);
+        }
+        newData[fitCount - 1] = data[data.length - 1]; // for new allocation
+        return newData;
+    }
+
+    _linearInterpolate(before, after, atPoint) {
+        return before + (after - before) * atPoint;
     }
 
     _initScriptNode () {
@@ -326,75 +384,88 @@ class Scratch3StemBlocks {
         // Safari still needs a webkit prefix for audio context
         this._context = new (window.AudioContext || window.webkitAudioContext)();
         this._audioPromise = navigator.mediaDevices.getUserMedia({
-            audio: true,
+            audio: {
+                echoCancellation: true,
+                channelCount: 1,
+                sampleRate: {
+                    ideal: 44100
+                },
+                sampleSize: 16
+            }
         });
 
-        const tempContext = this._context;
-        this._audioPromise.then(micStream => {
-            const microphone = tempContext.createMediaStreamSource(micStream);
-            const analyser = tempContext.createAnalyser();
-            microphone.connect(analyser);
+        this._audioPromise.then(() => {
         }).catch(e => {
             log.error(`Problem connecting to microphone:  ${e}`);
         });
     }
 
     _resumeListening () {
+        this._clearAudioBuffer();
         this._context.resume.bind(this._context);
-        Promise.all([this._audioPromise]).then(
-            this._setupSocketCallback)
-            .catch(e => {
-                log.error(`Problem with setup:  ${e}`);
-            });
-        // this._newWebsocket();
+        Promise.all([this._audioPromise]).then((values)=>{
+            this._micStream = values[0];
+            this._startByteStream();
+        }).catch(e => {
+            console.log(`Problem with setup:  ${e}`);
+        });
+    }
+
+    _clearAudioBuffer() {
+        this.dataBuffer = [];
     }
 
     _resetListening () {
         this._stopListening();
         // this._closeWebsocket();
         this._resolveSpeechPromises();
+        this._clearAudioBuffer();
     }
 
     _stopTranscription () {
         this._stopListening();
 
-        // curl -X POST -s --data-binary "@/Users/tiantianwang/Downloads/usc_webapi_audioTranscription_sdk_v3.10.31/demo/wave/16k.wav" -H "Content-Type:" -H "Accept:text/plain" -H "Accept-Language:zh_CN" -H "Accept-Charset:utf-8" -H "Accept-Topic:general" http://api.hivoice.cn/USCService/WebApi?appkey=wwr2y7vhhjnu67gcz6dtq3z22lp54nnvkchtjzit&userid=testid&id=xxxx
-        // this.idf  =  "STONE";
-        // this.ifm    =    this.createDOM("iframe",{
-        //         name:"iframe"+this.idf,
-        //         id:"iframe"+this.idf,
-        //         style:"display:none",
-        //         width:1,
-        //         height:1
-        // });    
-
-        // this.frm     =    this.createDOM("form",{
-        //         action:"http://api.hivoice.cn/USCService/WebApi?appkey=wwr2y7vhhjnu67gcz6dtq3z22lp54nnvkchtjzit&userid=testid&id=xxxx",
-        //         method:"post",
-        //         id:"FORM"+this.idf,
-        //         name:"FORM"+this.idf,
-        //         target:"iframe"+this.idf
-        // });
-        // document.body.appendChild(this.frm);    
-        // document.body.appendChild(this.ifm);
-        // this.frm.submit();
-
-        let xhr = new XMLHttpRequest();
-        xhr.open('POST', '/speech/sr/' + this.langCode, false);
-        xhr.setRequestHeader("Content-Type", "audio/pcm;rate=16000")
-        xhr.send(this.dataBuffer);
-        if (xhr.status === 200) {
-            let res = JSON.parse(xhr.responseText);
-            if (!!res.result && res.result.length > 0) {
-                this._currentUtterance = res.result[0];
-            }
+        var len = 0;
+        for (var i = 0; i < this.dataBuffer.length; i++){
+            len += this.dataBuffer[i].length;
+        }
+        var interleaved = new Float32Array(len);
+        var offset = 0;
+        for (var i = 0; i < this.dataBuffer.length; i++){
+            interleaved.set(this.dataBuffer[i], offset);
+            offset += this.dataBuffer[i].length;
         }
 
-        // if (this._socket && this._socket.readyState === this._socket.OPEN) {
-        //     this._socket.send('stopTranscription');
-        // }
-        // Give it a couple seconds to response before giving up and assuming nothing else will come back.
-        this._speechFinalResponseTimeout = setTimeout(this._resetListening, 3000);
+        var output = new Int16Array(interleaved.length);
+        for (var i = 0; i < interleaved.length; i++){
+            var s = Math.max(-1, Math.min(1, interleaved[i]));
+            output[i] = (s < 0 ? s * 0x8000 : s * 0x7FFF);
+        }
+        
+        const uploadPromise = new Promise(rev => {
+            let xhr = new XMLHttpRequest();
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState == 4) {
+                    if (xhr.status == 200) {
+                        let res = JSON.parse(xhr.responseText);
+                        if (!!res.result && res.result.length > 0) {
+                            this._currentUtterance = res.result[0];
+                            rev(this._currentUtterance);
+                        }
+                    } else {
+                        rev("");
+                    }
+                }
+            };
+            xhr.open('POST', '/speech/sr/' + this.langCode, true);
+            xhr.setRequestHeader("Content-Type", "audio/pcm;rate=8000")
+            xhr.send(output);
+            this._speechFinalResponseTimeout = setTimeout(this._resetListening, 3000);
+        });
+
+        uploadPromise.then((result)=>{
+            this._currentUtterance = result;
+        });
     }
 
     _stopListening () {
@@ -412,6 +483,7 @@ class Scratch3StemBlocks {
         if (this._sourceNode) {
             this._sourceNode.disconnect();
         }
+
     }
     
     stemSpeaker (args) {
