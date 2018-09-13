@@ -1,22 +1,22 @@
 const JSONRPCWebSocket = require('../util/jsonrpc-web-socket');
-const log = require('../util/log');
 const ScratchLinkWebSocket = 'wss://device-manager.scratch.mit.edu:20110/scratch/ble';
+// const log = require('../util/log');
 
-class BLESession extends JSONRPCWebSocket {
+class BLE extends JSONRPCWebSocket {
 
     /**
-     * A BLE device session object.  It handles connecting, over web sockets, to
-     * BLE devices, and reading and writing data to them.
+     * A BLE peripheral socket object.  It handles connecting, over web sockets, to
+     * BLE peripherals, and reading and writing data to them.
      * @param {Runtime} runtime - the Runtime for sending/receiving GUI update events.
-     * @param {object} deviceOptions - the list of options for device discovery.
+     * @param {object} peripheralOptions - the list of options for peripheral discovery.
      * @param {object} connectCallback - a callback for connection.
      */
-    constructor (runtime, deviceOptions, connectCallback) {
+    constructor (runtime, peripheralOptions, connectCallback) {
         const ws = new WebSocket(ScratchLinkWebSocket);
         super(ws);
 
         this._ws = ws;
-        this._ws.onopen = this.requestDevice.bind(this); // only call request device after socket opens
+        this._ws.onopen = this.requestPeripheral.bind(this); // only call request peripheral after socket opens
         this._ws.onerror = this._sendError.bind(this, 'ws onerror');
         this._ws.onclose = this._sendError.bind(this, 'ws onclose');
 
@@ -24,21 +24,23 @@ class BLESession extends JSONRPCWebSocket {
         this._connectCallback = connectCallback;
         this._connected = false;
         this._characteristicDidChangeCallback = null;
-        this._deviceOptions = deviceOptions;
+        this._peripheralOptions = peripheralOptions;
         this._discoverTimeoutID = null;
         this._runtime = runtime;
     }
 
     /**
-     * Request connection to the device.
+     * Request connection to the peripheral.
      * If the web socket is not yet open, request when the socket promise resolves.
      */
-    requestDevice () {
+    requestPeripheral () {
         if (this._ws.readyState === 1) { // is this needed since it's only called on ws.onopen?
             this._availablePeripherals = {};
             this._discoverTimeoutID = window.setTimeout(this._sendDiscoverTimeout.bind(this), 15000);
-            this.sendRemoteRequest('discover', this._deviceOptions)
-                .catch(e => this._sendError(e)); // never reached?
+            this.sendRemoteRequest('discover', this._peripheralOptions)
+                .catch(e => {
+                    this._sendError(e);
+                }); // never reached?
         }
         // TODO: else?
     }
@@ -48,7 +50,7 @@ class BLESession extends JSONRPCWebSocket {
      * callback if connection is successful.
      * @param {number} id - the id of the peripheral to connect to
      */
-    connectDevice (id) {
+    connectPeripheral (id) {
         this.sendRemoteRequest('connect', {peripheralId: id})
             .then(() => {
                 this._connected = true;
@@ -63,7 +65,7 @@ class BLESession extends JSONRPCWebSocket {
     /**
      * Close the websocket.
      */
-    disconnectSession () {
+    disconnect () {
         this._ws.close();
         this._connected = false;
     }
@@ -71,8 +73,73 @@ class BLESession extends JSONRPCWebSocket {
     /**
      * @return {bool} whether the peripheral is connected.
      */
-    getPeripheralIsConnected () {
+    isConnected () {
         return this._connected;
+    }
+
+    /**
+     * Start receiving notifications from the specified ble service.
+     * @param {number} serviceId - the ble service to read.
+     * @param {number} characteristicId - the ble characteristic to get notifications from.
+     * @param {object} onCharacteristicChanged - callback for characteristic change notifications.
+     * @return {Promise} - a promise from the remote startNotifications request.
+     */
+    startNotifications (serviceId, characteristicId, onCharacteristicChanged = null) {
+        const params = {
+            serviceId,
+            characteristicId
+        };
+        this._characteristicDidChangeCallback = onCharacteristicChanged;
+        return this.sendRemoteRequest('startNotifications', params)
+            .catch(e => {
+                this._sendError(e);
+            });
+    }
+
+    /**
+     * Read from the specified ble service.
+     * @param {number} serviceId - the ble service to read.
+     * @param {number} characteristicId - the ble characteristic to read.
+     * @param {boolean} optStartNotifications - whether to start receiving characteristic change notifications.
+     * @param {object} onCharacteristicChanged - callback for characteristic change notifications.
+     * @return {Promise} - a promise from the remote read request.
+     */
+    read (serviceId, characteristicId, optStartNotifications = false, onCharacteristicChanged = null) {
+        const params = {
+            serviceId,
+            characteristicId
+        };
+        if (optStartNotifications) {
+            params.startNotifications = true;
+        }
+        this._characteristicDidChangeCallback = onCharacteristicChanged;
+        return this.sendRemoteRequest('read', params)
+            .catch(e => {
+                this._sendError(e);
+            });
+    }
+
+    /**
+     * Write data to the specified ble service.
+     * @param {number} serviceId - the ble service to write.
+     * @param {number} characteristicId - the ble characteristic to write.
+     * @param {string} message - the message to send.
+     * @param {string} encoding - the message encoding type.
+     * @param {boolean} withResponse - if true, resolve after peripheral's response.
+     * @return {Promise} - a promise from the remote send request.
+     */
+    write (serviceId, characteristicId, message, encoding = null, withResponse = null) {
+        const params = {serviceId, characteristicId, message};
+        if (encoding) {
+            params.encoding = encoding;
+        }
+        if (withResponse) {
+            params.withResponse = withResponse;
+        }
+        return this.sendRemoteRequest('write', params)
+            .catch(e => {
+                this._sendError(e);
+            });
     }
 
     /**
@@ -102,51 +169,9 @@ class BLESession extends JSONRPCWebSocket {
         }
     }
 
-    /**
-     * Start reading from the specified ble service.
-     * @param {number} serviceId - the ble service to read.
-     * @param {number} characteristicId - the ble characteristic to read.
-     * @param {boolean} optStartNotifications - whether to start receiving characteristic change notifications.
-     * @param {object} onCharacteristicChanged - callback for characteristic change notifications.
-     * @return {Promise} - a promise from the remote read request.
-     */
-    read (serviceId, characteristicId, optStartNotifications = false, onCharacteristicChanged) {
-        const params = {
-            serviceId,
-            characteristicId
-        };
-        if (optStartNotifications) {
-            params.startNotifications = true;
-        }
-        this._characteristicDidChangeCallback = onCharacteristicChanged;
-        return this.sendRemoteRequest('read', params)
-            .catch(e => {
-                this._sendError(e);
-            });
-    }
-
-    /**
-     * Write data to the specified ble service.
-     * @param {number} serviceId - the ble service to write.
-     * @param {number} characteristicId - the ble characteristic to write.
-     * @param {string} message - the message to send.
-     * @param {string} encoding - the message encoding type.
-     * @return {Promise} - a promise from the remote send request.
-     */
-    write (serviceId, characteristicId, message, encoding = null) {
-        const params = {serviceId, characteristicId, message};
-        if (encoding) {
-            params.encoding = encoding;
-        }
-        return this.sendRemoteRequest('write', params)
-            .catch(e => {
-                this._sendError(e);
-            });
-    }
-
-    _sendError (e) {
-        this._connected = false;
-        log.error(`BLESession error: ${JSON.stringify(e)}`);
+    _sendError (/* e */) {
+        this.disconnect();
+        // log.error(`BLE error: ${JSON.stringify(e)}`);
         this._runtime.emit(this._runtime.constructor.PERIPHERAL_ERROR);
     }
 
@@ -155,4 +180,4 @@ class BLESession extends JSONRPCWebSocket {
     }
 }
 
-module.exports = BLESession;
+module.exports = BLE;

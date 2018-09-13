@@ -1,9 +1,59 @@
 const test = require('tap').test;
-const VirtualMachine = require('../../src/virtual-machine.js');
-const Sprite = require('../../src/sprites/sprite.js');
-const Variable = require('../../src/engine/variable.js');
+const VirtualMachine = require('../../src/virtual-machine');
+const Sprite = require('../../src/sprites/sprite');
+const Variable = require('../../src/engine/variable');
 const adapter = require('../../src/engine/adapter');
 const events = require('../fixtures/events.json');
+const Runtime = require('../../src/engine/runtime');
+const RenderedTarget = require('../../src/sprites/rendered-target');
+
+test('deleteSound returns function after deleting or null if nothing was deleted', t => {
+    const vm = new VirtualMachine();
+    const sprite = new Sprite();
+    sprite.sounds = [{id: 1}, {id: 2}, {id: 3}];
+    const rt = new Runtime();
+    const target = new RenderedTarget(sprite, rt);
+    vm.editingTarget = target;
+
+    const addFun = vm.deleteSound(1);
+    t.equal(sprite.sounds.length, 2);
+    t.equal(sprite.sounds[0].id, 1);
+    t.equal(sprite.sounds[1].id, 3);
+    t.type(addFun, 'function');
+
+    const noAddFun = vm.deleteSound(2);
+    t.equal(sprite.sounds.length, 2);
+    t.equal(sprite.sounds[0].id, 1);
+    t.equal(sprite.sounds[1].id, 3);
+    t.equal(noAddFun, null);
+
+    t.end();
+});
+
+test('deleteCostume returns function after deleting or null if nothing was deleted', t => {
+    const vm = new VirtualMachine();
+    const sprite = new Sprite();
+    sprite.costumes = [{id: 1}, {id: 2}, {id: 3}];
+    sprite.currentCostume = 0;
+    const rt = new Runtime();
+    const target = new RenderedTarget(sprite, rt);
+    vm.editingTarget = target;
+
+    const addFun = vm.deleteCostume(1);
+    t.equal(sprite.costumes.length, 2);
+    t.equal(sprite.costumes[0].id, 1);
+    t.equal(sprite.costumes[1].id, 3);
+    t.type(addFun, 'function');
+
+    const noAddFun = vm.deleteCostume(2);
+    t.equal(sprite.costumes.length, 2);
+    t.equal(sprite.costumes[0].id, 1);
+    t.equal(sprite.costumes[1].id, 3);
+    t.equal(noAddFun, null);
+
+    t.end();
+});
+
 
 test('addSprite throws on invalid string', t => {
     const vm = new VirtualMachine();
@@ -854,6 +904,27 @@ test('shareBlocksToTarget chooses a fresh name for a new global variable checkin
     const newId = newGlobalVar.id;
     t.notEqual(newId, 'mock var id');
     t.equals(vm.getVariableValue(stage.id, newId), 0);
+
+    t.end();
+});
+
+test('Setting turbo mode emits events', t => {
+    let turboMode = null;
+
+    const vm = new VirtualMachine();
+
+    vm.addListener('TURBO_MODE_ON', () => {
+        turboMode = true;
+    });
+    vm.addListener('TURBO_MODE_OFF', () => {
+        turboMode = false;
+    });
+
+    vm.setTurboMode(true);
+    t.equal(turboMode, true);
+
+    vm.setTurboMode(false);
+    t.equal(turboMode, false);
 
     t.end();
 });
