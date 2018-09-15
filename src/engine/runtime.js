@@ -1465,6 +1465,13 @@ class Runtime extends EventEmitter {
                 this.profiler.start(rendererDrawProfilerId);
             }
             this.renderer.draw();
+            if (window.captureScreen) {
+                window.captureScreen = undefined;
+                var imageshot = this.renderer._gl.canvas.toDataURL();
+                if (window.onScratchCaptured) {
+                    window.onScratchCaptured(imageshot);
+                }
+            }
             if (this.profiler !== null) {
                 this.profiler.stop();
             }

@@ -981,7 +981,7 @@ class Scratch3StemBlocks {
             xhr.send();
         });
 
-        Promise.all([loadPromise, tokenPromise]).then((values) => {
+        return Promise.all([loadPromise, tokenPromise]).then((values) => {
             var dataurl = values[0];
             var token = values[1];
             let arr = dataurl.split(',');
@@ -993,7 +993,7 @@ class Scratch3StemBlocks {
                         if (xhr2.status == 200) {
                             let res2 = JSON.parse(xhr2.responseText);
                             if (!!res2.result && res2.result.length > 0) {
-                                recv(res2.result[0].keyword);
+                                recv(res2.result[0].root +"-"+res2.result[0].keyword);
                             }
                         } else {
                             recv("");

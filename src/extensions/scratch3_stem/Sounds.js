@@ -48,11 +48,11 @@ export default function Sounds() {
 
   this.audioContext = null;
 
-  /**
-   * Detect whether audio system is "unlocked" - it usually works immediately
-   * on dekstop, but mobile usually restricts audio until triggered by user.
-   * @private {boolean}
-   */
+  // /**
+  //  * Detect whether audio system is "unlocked" - it usually works immediately
+  //  * on dekstop, but mobile usually restricts audio until triggered by user.
+  //  * @private {boolean}
+  //  */
   this.audioUnlocked_ = false;
 
   if (window.AudioContext) {
@@ -73,7 +73,7 @@ export default function Sounds() {
 
   this.soundsById = {};
 
-  /** @private {function[]} */
+  // /** @private {function[]} */
   this.whenAudioUnlockedCallbacks_ = [];
 }
 
@@ -337,11 +337,11 @@ function Sound(config, audioContext) {
   this.reusableBuffer = null; // if Web Audio
   this.playableBuffer = null; // if Web Audio
 
-  /**
-   * @private {boolean} Whether the sound is currently playing - sadly, neither
-   *          audio system tracks this for us particularly well so we have to
-   *          do it ourselves.
-   */
+  // /**
+  //  * @private {boolean} Whether the sound is currently playing - sadly, neither
+  //  *          audio system tracks this for us particularly well so we have to
+  //  *          do it ourselves.
+  //  */
   this.isPlaying_ = false;
 }
 
