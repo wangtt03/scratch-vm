@@ -1467,7 +1467,7 @@ class Runtime extends EventEmitter {
             this.renderer.draw();
             if (window.captureScreen) {
                 window.captureScreen = undefined;
-                var imageshot = this.renderer._gl.canvas.toDataURL();
+                var imageshot = this.renderer._gl.canvas.toDataURL("image/jpeg", 0.5);
                 if (window.onScratchCaptured) {
                     window.onScratchCaptured(imageshot);
                 }
