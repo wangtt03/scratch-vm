@@ -59,6 +59,14 @@ class Scratch3LooksBlocks {
     }
 
     /**
+     * Limit for say bubble string.
+     * @const {string}
+     */
+    static get SAY_BUBBLE_LIMIT () {
+        return 330;
+    }
+
+    /**
      * @param {Target} target - collect bubble state for this target. Probably, but not necessarily, a RenderedTarget.
      * @returns {BubbleState} the mutable bubble state associated with that target. This will be created if necessary.
      * @private
@@ -278,7 +286,7 @@ class Scratch3LooksBlocks {
         if (typeof message === 'number') {
             message = parseFloat(message.toFixed(2));
         }
-        message = String(message);
+        message = String(message).substr(0, Scratch3LooksBlocks.SAY_BUBBLE_LIMIT);
         this.runtime.emit('SAY', util.target, 'say', message);
     }
 
@@ -299,7 +307,7 @@ class Scratch3LooksBlocks {
     }
 
     think (args, util) {
-        this._updateBubble(util.target, 'think', String(args.MESSAGE));
+        this._updateBubble(util.target, 'think', String(args.MESSAGE).substr(0, Scratch3LooksBlocks.SAY_BUBBLE_LIMIT));
     }
 
     thinkforsecs (args, util) {
@@ -407,7 +415,12 @@ class Scratch3LooksBlocks {
         }
         // We've run before; check if the wait is still going on.
         const instance = this;
-        const waiting = util.stackFrame.startedThreads.some(thread => instance.runtime.isActiveThread(thread));
+        // Scratch 2 considers threads to be waiting if they are still in
+        // runtime.threads. Threads that have run all their blocks, or are
+        // marked done but still in runtime.threads are still considered to
+        // be waiting.
+        const waiting = util.stackFrame.startedThreads
+            .some(thread => instance.runtime.threads.indexOf(thread) !== -1);
         if (waiting) {
             // If all threads are waiting for the next tick or later yield
             // for a tick as well. Otherwise yield until the next loop of
