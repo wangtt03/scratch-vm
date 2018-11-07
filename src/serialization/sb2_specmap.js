@@ -1648,6 +1648,7 @@ const addExtensionOp = function (sb2Extension, sb2Opcode, blockInfo) {
 };
 
 const weDo2 = 'LEGO WeDo 2.0';
+const stemAI = '人工智能';
 
 addExtensionOp(weDo2, 'motorOnFor', {
     opcode: 'wedo2_motorOnFor',
@@ -1796,6 +1797,49 @@ addExtensionOp(weDo2, 'getTilt', {
             type: 'input',
             inputOp: 'wedo2_menu_TILT_DIRECTION',
             inputName: 'TILT_DIRECTION'
+        }
+    ]
+});
+
+addExtensionOp(stemAI, 'stemSpeaker', {
+    opcode: 'stem_stemSpeaker',
+    argMap: [
+        {
+            type: 'input',
+            inputOp: 'stem_menu_AUDIO_GENDER',
+            inputName: 'AUDIO_GENDER'
+        },
+        {
+            type: 'input',
+            inputOp: 'text',
+            inputName: 'TEXT'
+        }
+    ]
+});
+
+addExtensionOp(stemAI, 'listenAndWait', {
+    opcode: 'stem_listenAndWait',
+    argMap: [
+        {
+            type: 'input',
+            inputOp: 'stem_menu_LANG_TYPE',
+            inputName: 'LANG_TYPE'
+        },
+        {
+            type: 'input',
+            inputOp: 'math_number',
+            inputName: 'SR_DURATION'
+        }
+    ]
+});
+
+addExtensionOp(stemAI, 'whenSoundRecognizedHat', {
+    opcode: 'stem_whenSoundRecognizedHat',
+    argMap: [
+        {
+            type: 'input',
+            inputOp: 'text',
+            inputName: 'PHRASE'
         }
     ]
 });
