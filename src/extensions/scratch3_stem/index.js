@@ -4,6 +4,7 @@ const Runtime = require('../../engine/runtime');
 const Cast = require('../../util/cast');
 const Video = require('../../io/video');
 import Sounds from './Sounds'
+import _ from 'lodash';
 
 const VideoState = {
     /** Video turned off. */
@@ -56,6 +57,7 @@ class Scratch3StemBlocks {
         this.runtime = runtime;
 
         this.dataBuffer = [];
+        this.throttleTime = 1500;
 
         this._speechPromises = [];
         this._currentUtterance = '';
@@ -665,7 +667,8 @@ class Scratch3StemBlocks {
             xhr.open('POST', '/speech/sr/' + this.langCode, true);
             xhr.setRequestHeader("Content-Type", "audio/pcm;rate=8000")
             xhr.send(output);
-            this._speechFinalResponseTimeout = setTimeout(this._resetListening, 3000);
+            this._resetListening();
+            // this._speechFinalResponseTimeout = setTimeout(this._resetListening, 3000);
         });
 
         uploadPromise.then((result)=>{
@@ -746,7 +749,7 @@ class Scratch3StemBlocks {
             xhr.send();
         });
 
-        loadPromise.then((dataurl) => {
+        return loadPromise.then((dataurl) => {
             let arr = dataurl.split(','), 
             mime = arr[0].match(/:(.*?);/)[1],
             bstr = atob(arr[1]), 
@@ -850,7 +853,14 @@ class Scratch3StemBlocks {
         return this._currentOcrResult;
     }
 
-    textGeneralRecognizerByUrl (args) {
+    textGeneralRecognizerByUrl(args) {
+        if (!this.textGeneralRecognizerByUrlThrottled) {
+            this.textGeneralRecognizerByUrlThrottled = _.throttle(this.textGeneralRecognizerByUrlImpl, this.throttleTime, { 'trailing': false });
+        }
+        this.textGeneralRecognizerByUrlThrottled(args);
+    }
+
+    textGeneralRecognizerByUrlImpl (args) {
         const loadPromise = new Promise(resolve1 => {
             var xhr = new XMLHttpRequest();
             xhr.onload = function() {
@@ -865,7 +875,7 @@ class Scratch3StemBlocks {
             xhr.send();
         });
 
-        Promise.all([loadPromise]).then((values) => {
+        return Promise.all([loadPromise]).then((values) => {
             var dataurl = values[0];
             let arr = dataurl.split(',');
 
@@ -899,6 +909,13 @@ class Scratch3StemBlocks {
     }
 
     textGeneralRecognizer() {
+        if (!this.textGeneralRecognizerThrottled) {
+            this.textGeneralRecognizerThrottled = _.throttle(this.textGeneralRecognizerImpl, this.throttleTime, { 'trailing': false });
+        }
+        this.textGeneralRecognizerThrottled();
+    }
+
+    textGeneralRecognizerImpl() {
         const canvas = this.runtime.ioDevices.video.getFrame({
             format: Video.FORMAT_CANVAS,
             dimensions: [480, 360],
@@ -951,6 +968,13 @@ class Scratch3StemBlocks {
     }
 
     imageGeneralRecognizerByUrl(args) {
+        if (!this.imageGeneralRecognizerByUrlThrottled) {
+            this.imageGeneralRecognizerByUrlThrottled = _.throttle(this.imageGeneralRecognizerByUrlImpl, this.throttleTime, { 'trailing': false });
+        }
+        this.imageGeneralRecognizerByUrlThrottled(args);
+    }
+
+    imageGeneralRecognizerByUrlImpl(args) {
         const loadPromise = new Promise(resolve1 => {
             var xhr = new XMLHttpRequest();
             xhr.onload = function() {
@@ -1011,6 +1035,13 @@ class Scratch3StemBlocks {
     }
 
     imageGeneralRecognizer() {
+        if (!this.imageGeneralRecognizerThrottled) {
+            this.imageGeneralRecognizerThrottled = _.throttle(this.imageGeneralRecognizerImpl, this.throttleTime, { 'trailing': false });
+        }
+        this.imageGeneralRecognizerThrottled();
+    }
+
+    imageGeneralRecognizerImpl() {
         const canvas = this.runtime.ioDevices.video.getFrame({
             format: Video.FORMAT_CANVAS,
             dimensions: [480, 360]
@@ -1066,6 +1097,14 @@ class Scratch3StemBlocks {
     }
 
     emotionRecognizer() {
+        if (!this.emotionRecognizerThrottled) {
+            this.emotionRecognizerThrottled = _.throttle(this.emotionRecognizerImpl, this.throttleTime, { 'trailing': false });
+        }
+        this.emotionRecognizerThrottled();
+
+    }
+
+    emotionRecognizerImpl() {
         var that = this;
         const canvas = this.runtime.ioDevices.video.getFrame({
             format: Video.FORMAT_CANVAS,
