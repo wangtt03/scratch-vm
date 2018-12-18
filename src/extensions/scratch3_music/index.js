@@ -85,6 +85,9 @@ class Scratch3MusicBlocks {
 
         this._onTargetCreated = this._onTargetCreated.bind(this);
         this.runtime.on('targetWasCreated', this._onTargetCreated);
+
+        this._playNoteForPicker = this._playNoteForPicker.bind(this);
+        this.runtime.on('PLAY_NOTE', this._playNoteForPicker);
     }
 
     /**
@@ -747,7 +750,7 @@ class Scratch3MusicBlocks {
                     }),
                     arguments: {
                         NOTE: {
-                            type: ArgumentType.NUMBER,
+                            type: ArgumentType.NOTE,
                             defaultValue: 60
                         },
                         BEATS: {
@@ -883,9 +886,10 @@ class Scratch3MusicBlocks {
         }
 
         const engine = util.runtime.audioEngine;
-        const chain = engine.createEffectChain();
-        chain.setEffectsFromTarget(util.target);
-        player.connect(chain);
+        const context = engine.audioContext;
+        const volumeGain = context.createGain();
+        volumeGain.gain.setValueAtTime(util.target.volume / 100, engine.currentTime);
+        volumeGain.connect(engine.getInputNode());
 
         this._concurrencyCounter++;
         player.once('stop', () => {
@@ -893,6 +897,10 @@ class Scratch3MusicBlocks {
         });
 
         player.play();
+        // Connect the player to the gain node.
+        player.connect({getInputNode () {
+            return volumeGain;
+        }});
     }
 
     /**
@@ -940,6 +948,15 @@ class Scratch3MusicBlocks {
         }
     }
 
+    _playNoteForPicker (noteNum, category) {
+        if (category !== this.getInfo().name) return;
+        const util = {
+            runtime: this.runtime,
+            target: this.runtime.getEditingTarget()
+        };
+        this._playNote(util, noteNum, 0.25);
+    }
+
     /**
      * Play a note using the current instrument for a duration in seconds.
      * This function actually plays the sound, and handles the timing of the sound, including the
@@ -985,18 +1002,18 @@ class Scratch3MusicBlocks {
             player.take();
         }
 
-        const chain = engine.createEffectChain();
-        chain.setEffectsFromTarget(util.target);
-
         // Set its pitch.
         const sampleNote = sampleArray[sampleIndex];
         const notePitchInterval = this._ratioForPitchInterval(note - sampleNote);
 
-        // Create a gain node for this note, and connect it to the sprite's
-        // simulated effectChain.
+        // Create gain nodes for this note's volume and release, and chain them
+        // to the output.
         const context = engine.audioContext;
+        const volumeGain = context.createGain();
+        volumeGain.gain.setValueAtTime(util.target.volume / 100, engine.currentTime);
         const releaseGain = context.createGain();
-        releaseGain.connect(chain.getInputNode());
+        volumeGain.connect(releaseGain);
+        releaseGain.connect(engine.getInputNode());
 
         // Schedule the release of the note, ramping its gain down to zero,
         // and then stopping the sound.
@@ -1018,7 +1035,7 @@ class Scratch3MusicBlocks {
         player.play();
         // Connect the player to the gain node.
         player.connect({getInputNode () {
-            return releaseGain;
+            return volumeGain;
         }});
         // Set playback now after play creates the outputNode.
         player.outputNode.playbackRate.value = notePitchInterval;

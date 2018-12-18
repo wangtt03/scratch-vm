@@ -3,8 +3,8 @@ const BlockType = require('../../extension-support/block-type');
 const Runtime = require('../../engine/runtime');
 const Cast = require('../../util/cast');
 const Video = require('../../io/video');
-import Sounds from './Sounds'
-import _ from 'lodash';
+const Sounds = require('./Sounds');
+const _ = require('lodash');
 
 const VideoState = {
     /** Video turned off. */
@@ -1158,6 +1158,5 @@ class Scratch3StemBlocks {
             that._currentEmotion = this._translateEmotion(res);
         });
     }
-};
-
+}
 module.exports = Scratch3StemBlocks;

@@ -17,6 +17,7 @@ const Scratch3VideoSensingBlocks = require('../extensions/scratch3_video_sensing
 const Scratch3StemBlocks = require('../extensions/scratch3_stem');
 const Scratch3Speech2TextBlocks = require('../extensions/scratch3_speech2text');
 const Scratch3Ev3Blocks = require('../extensions/scratch3_ev3');
+const Scratch3MakeyMakeyBlocks = require('../extensions/scratch3_makeymakey');
 
 const builtinExtensions = {
     pen: Scratch3PenBlocks,
@@ -28,7 +29,8 @@ const builtinExtensions = {
     videoSensing: Scratch3VideoSensingBlocks,
     stem: Scratch3StemBlocks,
     speech2text: Scratch3Speech2TextBlocks,
-    ev3: Scratch3Ev3Blocks
+    ev3: Scratch3Ev3Blocks,
+    makeymakey: Scratch3MakeyMakeyBlocks
 };
 
 /**

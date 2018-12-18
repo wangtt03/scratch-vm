@@ -7,6 +7,7 @@ const exampleProjectPath = path.resolve(__dirname, '../fixtures/clone-cleanup.sb
 const commentsSB2ProjectPath = path.resolve(__dirname, '../fixtures/comments.sb2');
 const commentsSB3ProjectPath = path.resolve(__dirname, '../fixtures/comments.sb3');
 const commentsSB3NoDupeIds = path.resolve(__dirname, '../fixtures/comments_no_duplicate_id_serialization.sb3');
+const variableReporterSB2ProjectPath = path.resolve(__dirname, '../fixtures/top-level-variable-reporter.sb2');
 const FakeRenderer = require('../fixtures/fake-renderer');
 
 test('serialize', t => {
@@ -218,6 +219,39 @@ test('deserializeBlocks on already deserialized input', t => {
             const deserialized = sb3.deserializeBlocks(serialized);
             const deserializedAgain = sb3.deserializeBlocks(deserialized);
             t.deepEqual(deserialized, deserializedAgain, 'no change from second pass of deserialize');
+            t.end();
+        });
+});
+
+test('getExtensionIdForOpcode', t => {
+    t.equal(sb3.getExtensionIdForOpcode('wedo_loopy'), 'wedo');
+
+    // does not consider CORE to be extensions
+    t.false(sb3.getExtensionIdForOpcode('control_loopy'));
+
+    // only considers things before the first underscore
+    t.equal(sb3.getExtensionIdForOpcode('hello_there_loopy'), 'hello');
+
+    // does not return anything for opcodes with no extension
+    t.false(sb3.getExtensionIdForOpcode('hello'));
+
+    t.end();
+});
+
+test('(#1608) serializeBlocks maintains top level variable reporters', t => {
+    const vm = new VirtualMachine();
+    vm.loadProject(readFileToBuffer(variableReporterSB2ProjectPath))
+        .then(() => {
+            const blocks = vm.runtime.targets[0].blocks._blocks;
+            const result = sb3.serialize(vm.runtime);
+            // Project should have 1 block, a top-level variable reporter
+            t.equal(Object.keys(blocks).length, 1);
+            t.equal(Object.keys(result.targets[0].blocks).length, 1);
+
+            // Make sure deserializing these blocks works
+            t.doesNotThrow(() => {
+                sb3.deserialize(JSON.parse(JSON.stringify(result)), vm.runtime);
+            });
             t.end();
         });
 });

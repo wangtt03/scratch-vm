@@ -346,7 +346,7 @@ class EV3Motor {
      */
     coast () {
         if (this._power === 0) return;
-        
+
         const cmd = this._parent.generateCommand(
             Ev3Command.DIRECT_COMMAND_NO_REPLY,
             [
@@ -555,6 +555,9 @@ class EV3 {
      * Called by the runtime when user wants to scan for an EV3 peripheral.
      */
     scan () {
+        if (this._bt) {
+            this._bt.disconnect();
+        }
         this._bt = new BT(this._runtime, this._extensionId, {
             majorDeviceClass: 8,
             minorDeviceClass: 1
@@ -566,17 +569,22 @@ class EV3 {
      * @param {number} id - the id of the peripheral to connect to.
      */
     connect (id) {
-        this._bt.connectPeripheral(id);
+        if (this._bt) {
+            this._bt.connectPeripheral(id);
+        }
     }
 
     /**
      * Called by the runtime when user wants to disconnect from the EV3 peripheral.
      */
     disconnect () {
-        this._bt.disconnect();
         this._clearSensorsAndMotors();
         window.clearInterval(this._pollingIntervalID);
         this._pollingIntervalID = null;
+
+        if (this._bt) {
+            this._bt.disconnect();
+        }
     }
 
     /**
@@ -910,6 +918,9 @@ class Scratch3Ev3Blocks {
 
         // Create a new EV3 peripheral instance
         this._peripheral = new EV3(this.runtime, Scratch3Ev3Blocks.EXTENSION_ID);
+
+        this._playNoteForPicker = this._playNoteForPicker.bind(this);
+        this.runtime.on('PLAY_NOTE', this._playNoteForPicker);
     }
 
     /**
@@ -1089,7 +1100,7 @@ class Scratch3Ev3Blocks {
                     blockType: BlockType.COMMAND,
                     arguments: {
                         NOTE: {
-                            type: ArgumentType.NUMBER,
+                            type: ArgumentType.NOTE,
                             defaultValue: 60
                         },
                         TIME: {
@@ -1210,6 +1221,14 @@ class Scratch3Ev3Blocks {
 
     getBrightness () {
         return this._peripheral.brightness;
+    }
+
+    _playNoteForPicker (note, category) {
+        if (category !== this.getInfo().name) return;
+        this.beep({
+            NOTE: note,
+            TIME: 0.25
+        });
     }
 
     beep (args) {
